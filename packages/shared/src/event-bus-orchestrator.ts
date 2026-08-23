@@ -1,5 +1,6 @@
-import axios from 'axios';
 import { SourceEngine, KnownEventType, ActorType } from './enums';
+import { KafkaProducerService } from './kafka/kafka-producer.service';
+import { KafkaTimelineEventInput } from './kafka/kafka.contracts';
 
 export interface PublishEngineEventOptions {
   workflowId: string;
@@ -21,9 +22,6 @@ export interface PublishEventResponse {
   data?: any;
   error?: string;
 }
-
-import { KafkaProducerService } from './kafka/kafka-producer.service';
-import { KafkaTimelineEventInput } from './kafka/kafka.contracts';
 
 export class EventBusOrchestrator {
   private baseUrl: string;
@@ -63,7 +61,6 @@ export class EventBusOrchestrator {
    * Publishes an engine event from any producer engine to the central Timeline Engine Bus via REST or Kafka
    */
   async publishEvent(options: PublishEngineEventOptions): Promise<PublishEventResponse> {
-    // If KAFKA_TRANSPORT is explicitly set, prefer Kafka
     if (process.env.USE_KAFKA_FOR_EVENTS === 'true') {
       const kafkaResult = await this.publishKafkaEvent(options);
       return {
@@ -90,17 +87,17 @@ export class EventBusOrchestrator {
     };
 
     try {
-      const response = await axios.post(`${this.baseUrl}/api/v1/events/publish`, payload, {
+      const res = await fetch(`${this.baseUrl}/api/v1/events/publish`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        timeout: 5000,
+        body: JSON.stringify(payload),
       });
-
-      return response.data;
+      const data = await res.json();
+      return data;
     } catch (error: any) {
-      const errorMsg = error.response?.data?.message || error.message || 'Unknown network error';
       return {
         success: false,
-        error: Array.isArray(errorMsg) ? errorMsg.join(', ') : errorMsg,
+        error: error.message || 'Unknown network error',
       };
     }
   }
@@ -110,10 +107,9 @@ export class EventBusOrchestrator {
    */
   async getWorkflowTimeline(workflowId: string, options: { page?: number; limit?: number; sourceEngine?: string } = {}) {
     try {
-      const response = await axios.get(`${this.baseUrl}/api/v1/workflows/${workflowId}/timeline`, {
-        params: options,
-      });
-      return response.data;
+      const query = new URLSearchParams(options as any).toString();
+      const res = await fetch(`${this.baseUrl}/api/v1/workflows/${workflowId}/timeline?${query}`);
+      return await res.json();
     } catch (error: any) {
       return { success: false, error: error.message };
     }
@@ -124,8 +120,8 @@ export class EventBusOrchestrator {
    */
   async getEngineStats() {
     try {
-      const response = await axios.get(`${this.baseUrl}/api/v1/engines/stats`);
-      return response.data;
+      const res = await fetch(`${this.baseUrl}/api/v1/engines/stats`);
+      return await res.json();
     } catch (error: any) {
       return { success: false, error: error.message };
     }
@@ -135,4 +131,3 @@ export class EventBusOrchestrator {
     return this.kafkaProducer;
   }
 }
-

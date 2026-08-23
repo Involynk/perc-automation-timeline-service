@@ -3,6 +3,10 @@ import { Kafka, Consumer } from 'kafkajs';
 import {
   KAFKA_TOPIC_TIMELINE_EVENTS,
   KAFKA_TOPIC_TIMELINE_APPEND_NOTE,
+  KAFKA_TOPIC_LEAD_CAPTURED,
+  KAFKA_TOPIC_RESPONSE_SENT,
+  KAFKA_TOPIC_FOLLOWUP_ACTION_REQUIRED,
+  KAFKA_TOPIC_MEETING_BOOKED,
   KAFKA_GROUP_TIMELINE_ENGINE,
   KafkaTimelineEventInput,
   KafkaAppendNoteInput,
@@ -61,12 +65,19 @@ export class TimelineKafkaConsumerService implements OnModuleInit, OnModuleDestr
       try {
         await this.consumer.connect();
         await this.consumer.subscribe({
-          topics: [KAFKA_TOPIC_TIMELINE_EVENTS, KAFKA_TOPIC_TIMELINE_APPEND_NOTE],
+          topics: [
+            KAFKA_TOPIC_TIMELINE_EVENTS,
+            KAFKA_TOPIC_TIMELINE_APPEND_NOTE,
+            KAFKA_TOPIC_LEAD_CAPTURED,           // Audit log: lead captured event
+            KAFKA_TOPIC_RESPONSE_SENT,            // Audit log: response delivered
+            KAFKA_TOPIC_FOLLOWUP_ACTION_REQUIRED, // Audit log: follow-up dispatched
+            KAFKA_TOPIC_MEETING_BOOKED,           // Audit log: meeting booked
+          ],
           fromBeginning: false,
         });
 
         this.isRunning = true;
-        this.logger.log(`[Kafka Consumer] Subscribed to [${KAFKA_TOPIC_TIMELINE_EVENTS}, ${KAFKA_TOPIC_TIMELINE_APPEND_NOTE}] with group '${KAFKA_GROUP_TIMELINE_ENGINE}'`);
+        this.logger.log(`[Kafka Consumer] Subscribed to all domain event topics for audit logging`);
 
         await this.consumer.run({
           eachMessage: async ({ topic, partition, message }) => {
@@ -82,6 +93,14 @@ export class TimelineKafkaConsumerService implements OnModuleInit, OnModuleDestr
                 await this.processTimelineEvent(payload, topic);
               } else if (topic === KAFKA_TOPIC_TIMELINE_APPEND_NOTE) {
                 await this.processAppendNoteCommand(payload, topic);
+              } else if (topic === KAFKA_TOPIC_LEAD_CAPTURED) {
+                await this.processDomainEvent(payload, 'LEAD_CAPTURED', SourceEngine.LEAD_CAPTURE, topic);
+              } else if (topic === KAFKA_TOPIC_RESPONSE_SENT) {
+                await this.processDomainEvent(payload, 'RESPONSE_SENT', SourceEngine.RESPONSE, topic);
+              } else if (topic === KAFKA_TOPIC_FOLLOWUP_ACTION_REQUIRED) {
+                await this.processDomainEvent(payload, 'FOLLOWUP_DISPATCHED', SourceEngine.FOLLOW_UP, topic);
+              } else if (topic === KAFKA_TOPIC_MEETING_BOOKED) {
+                await this.processDomainEvent(payload, 'MEETING_BOOKED', SourceEngine.MEETING, topic);
               }
             } catch (err: any) {
               this.logger.error(`[Kafka Error] Failed to process message from ${topic}: ${err.message}`);
@@ -139,6 +158,36 @@ export class TimelineKafkaConsumerService implements OnModuleInit, OnModuleDestr
       await this.sendToDlq(topic, err.message, event);
       throw err;
     }
+  }
+
+  /**
+   * Translates raw domain events into structured timeline audit records.
+   * Called for lead.captured, response.sent, followup.action.required, meeting.booked.
+   */
+  private async processDomainEvent(
+    payload: any,
+    eventType: string,
+    sourceEngine: string,
+    topic: string,
+  ): Promise<void> {
+    const leadId = payload.leadId || payload.correlationId;
+    if (!leadId) {
+      this.logger.warn(`[Timeline Domain Event] Skipping event - no leadId in payload from topic ${topic}`);
+      return;
+    }
+    const timelineInput: KafkaTimelineEventInput = {
+      eventId: payload.eventId || `evt_tl_${Date.now()}_${leadId.slice(0, 8)}`,
+      workflowId: payload.workflowId || leadId,
+      leadId,
+      eventType,
+      sourceEngine,
+      actorType: ActorType.SYSTEM,
+      title: eventType.replace(/_/g, ' '),
+      description: `Event ${eventType} processed from ${topic}`,
+      metadata: payload,
+      occurredAt: payload.sentAt || payload.firedAt || payload.scheduledAt || new Date().toISOString(),
+    };
+    await this.processTimelineEvent(timelineInput, topic);
   }
 
   /**

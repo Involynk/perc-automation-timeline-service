@@ -121,7 +121,7 @@ export class TimelineRepository {
         const records = await this.prisma.timelineEvent.findMany({
           orderBy: { occurredAt: 'desc' },
         });
-        return records.map((r) => this.mapPrismaToRecord(r));
+        return records.map((r: any) => this.mapPrismaToRecord(r));
       } catch (err) {}
     }
 

@@ -1,59 +1,19 @@
 {
   "$schema": "https://json.schemastore.org/nest-cli",
   "collection": "@nestjs/schematics",
-  "sourceRoot": "packages/api-gateway/src",
+  "sourceRoot": "packages/timeline-service/src",
   "compilerOptions": {
-    "tsConfigPath": "packages/api-gateway/tsconfig.json"
+    "tsConfigPath": "packages/timeline-service/tsconfig.json"
   },
   "projects": {
-    "api-gateway": {
-      "type": "application",
-      "root": "packages/api-gateway",
-      "entryFile": "main",
-      "sourceRoot": "packages/api-gateway/src",
-      "compilerOptions": {
-        "tsConfigPath": "packages/api-gateway/tsconfig.json"
-      }
-    },
-    "communication-service": {
-      "type": "application",
-      "root": "packages/communication-service",
-      "entryFile": "main",
-      "sourceRoot": "packages/communication-service/src",
-      "compilerOptions": {
-        "tsConfigPath": "packages/communication-service/tsconfig.json"
-      }
-    },
-    "workflow-service": {
-      "type": "application",
-      "root": "packages/workflow-service",
-      "entryFile": "main",
-      "sourceRoot": "packages/workflow-service/src",
-      "compilerOptions": {
-        "tsConfigPath": "packages/workflow-service/tsconfig.json"
-      }
-    },
     "timeline-service": {
       "type": "application",
       "root": "packages/timeline-service",
       "entryFile": "main",
       "sourceRoot": "packages/timeline-service/src",
       "compilerOptions": {
-        "tsConfigPath": "packages/timeline-service/tsconfig.json",
-        "assets": [
-          { "include": "../public/**/*", "outDir": "dist/packages/timeline-service/public", "watchAssets": true }
-        ]
-      }
-    },
-    "notification-service": {
-      "type": "application",
-      "root": "packages/notification-service",
-      "entryFile": "main",
-      "sourceRoot": "packages/notification-service/src",
-      "compilerOptions": {
-        "tsConfigPath": "packages/notification-service/tsconfig.json"
+        "tsConfigPath": "packages/timeline-service/tsconfig.json"
       }
     }
   }
 }
-

@@ -1,8 +1,0 @@
-{
-  "extends": "../../tsconfig.base.json",
-  "compilerOptions": {
-    "outDir": "../../dist/packages/notification-service",
-    "rootDir": "src"
-  },
-  "include": ["src/**/*"]
-}
